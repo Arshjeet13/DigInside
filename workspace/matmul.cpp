@@ -1,6 +1,8 @@
 // Multithreaded matrix multiplication: C = A * B, all N x N doubles.
 //
-//   args "N THREADS"    e.g. "2000 1", "2000 4", "2000 8", "2000 16", "2000 32"
+//   args "N THREADS [ORDER]"   e.g. "2000 1", "2000 8", "1024 1 ijk", "1024 1 jki"
+//   ORDER is the loop nest: ikj (default), ijk or jki — the same three orders as Cache mode's
+//   matmul example, so you can check its predictions on the real CPU (see the bottom of this comment).
 //
 // The work is N^3 multiply-adds no matter how many threads share it. THREADS threads each take
 // a contiguous band of rows of C, so with P threads the run takes about N^3 / P time:
@@ -10,19 +12,26 @@
 // Try: run "2000 1" then "2000 8" and compare the printed time and the canvas (1 hot core vs 8).
 // Pin the 8-thread run to 2 CPUs and watch 8 threads crowd onto 2 cores at ~25% each.
 //
-// Loop order is i-k-j: the inner loop walks rows of B and C contiguously, so it is cache-friendly
-// and the compiler can vectorize it (Cache mode shows why the textbook i-j-k order is slower).
+// Loop orders (same arithmetic, same result):
+//   ikj: inner loop walks rows of B and C (stride 1)      -> cache-friendly, vectorizes
+//   ijk: inner loop walks a row of A and a column of B    -> B misses on every step
+//   jki: inner loop walks columns of A and C (stride N)   -> worst locality
+// Cache mode simulates these three on a model cache and ranks them ikj < ijk < jki in misses.
+// Run "1024 1 ikj", "1024 1 ijk", "1024 1 jki" here to see the real CPU agree.
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <random>
+#include <string>
 #include <thread>
 #include <vector>
 
 int main(int argc, char** argv) {
     const int n = argc > 1 ? atoi(argv[1]) : 2000;
     int p = argc > 2 ? atoi(argv[2]) : 8;
+    std::string order = argc > 3 ? argv[3] : "ikj";
+    if (order != "ikj" && order != "ijk" && order != "jki") { fprintf(stderr, "ORDER must be ikj, ijk or jki\n"); return 1; }
     if (n <= 0) { fprintf(stderr, "N must be positive\n"); return 1; }
     if (p < 1) p = 1;
     if (p > n) p = n;  // at least one row per thread
@@ -32,17 +41,32 @@ int main(int argc, char** argv) {
     std::uniform_real_distribution<double> d(-1.0, 1.0);
     for (auto& x : A) x = d(rng);
     for (auto& x : B) x = d(rng);
-    printf("C = A * B with N = %d (%.2f G multiply-adds), %d thread%s\n", n, double(n) * n * n / 1e9, p, p == 1 ? "" : "s");
+    printf("C = A * B with N = %d (%.2f G multiply-adds), %d thread%s, order %s\n",
+           n, double(n) * n * n / 1e9, p, p == 1 ? "" : "s", order.c_str());
 
-    // Thread t computes rows [lo, hi) of C.
+    // Thread t owns the band [lo, hi) of the outer loop: rows of C for ikj/ijk, columns for jki,
+    // so no two threads ever write the same element.
     auto band = [&](int lo, int hi) {
-        for (int i = lo; i < hi; i++) {
-            double* c = &C[size_t(i) * n];
-            for (int k = 0; k < n; k++) {
-                const double a = A[size_t(i) * n + k];
-                const double* b = &B[size_t(k) * n];
-                for (int j = 0; j < n; j++) c[j] += a * b[j];
-            }
+        const size_t N = n;
+        if (order == "ikj") {
+            for (int i = lo; i < hi; i++)
+                for (int k = 0; k < n; k++) {
+                    const double a = A[i * N + k];
+                    for (int j = 0; j < n; j++) C[i * N + j] += a * B[k * N + j];
+                }
+        } else if (order == "ijk") {
+            for (int i = lo; i < hi; i++)
+                for (int j = 0; j < n; j++) {
+                    double sum = 0;
+                    for (int k = 0; k < n; k++) sum += A[i * N + k] * B[k * N + j];
+                    C[i * N + j] += sum;
+                }
+        } else {  // jki
+            for (int j = lo; j < hi; j++)
+                for (int k = 0; k < n; k++) {
+                    const double b = B[k * N + j];
+                    for (int i = 0; i < n; i++) C[i * N + j] += A[i * N + k] * b;
+                }
         }
     };
 
