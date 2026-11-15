@@ -5,4 +5,5 @@ frontend/dist/
 *.trace
 workspace/.build/
 *.tsbuildinfo
-start_prompt.txtinstrument/.build/
+start_prompt.txt
+instrument/.build/
