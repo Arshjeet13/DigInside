@@ -8,6 +8,7 @@ DELETE /api/file?path=        delete
 WS     /ws/system             System mode. Client sends one of
                                 {"cmd": "ls -l", ...}                       run a shell-style command (cwd = repo root)
                                 {"file": "threads.cpp", "args": "8 3", ...} build if needed, run (cwd = workspace)
+                                  optional "build": "g++ -O3 {src} -o {out}" overrides the compile command
                               plus optional "strace": bool, "interval_ms": int, "cpus": [int] (pin; empty = any).
                               Server streams {"type": "build"|"start"|"tick"|"exit"|"error"|"pinned", ...}.
                               Client may send {"type": "stop"} or {"type": "pin", "cpus": [...]} (live re-pin).
@@ -96,7 +97,7 @@ async def ws_system(ws: WebSocket):
             cpus=req.get("cpus") or None,
         )
         if req.get("file"):
-            b = await workspace.build(str(req["file"]))
+            b = await workspace.build(str(req["file"]), req.get("build") or None)
             await ws.send_json(b)
             if not b["ok"]:
                 await ws.close()

@@ -7,7 +7,11 @@ can't escape it.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
+import re
+import shlex
+import subprocess
 import time
 from pathlib import Path
 
@@ -21,8 +25,14 @@ LANGS = {
 }
 RUNNABLE = {".cpp", ".cc", ".cxx", ".c", ".py", ".sh"}
 MAX_FILE_BYTES = 1_000_000
-CXXFLAGS = ["-O2", "-g", "-pthread", "-std=c++20", "-Wall"]
-CFLAGS = ["-O2", "-g", "-pthread", "-Wall"]
+# Build command templates: {src} = the source file, {out} = the binary DigInside will run.
+DEFAULT_BUILD = {
+    "cpp": "g++ -O2 -g -pthread -std=c++20 -Wall -fopenmp {src} -o {out}",
+    "c": "gcc -O2 -g -pthread -Wall -fopenmp {src} -o {out} -lm",
+}
+# For these compilers, DigInside appends include paths for the workspace and instrument/ headers.
+_COMPILER = re.compile(r"^(g\+\+|gcc|c\+\+|cc|clang\+\+|clang)(-\d+)?$")
+BUILD_TIMEOUT_S = 120
 
 
 class WorkspaceError(ValueError):
@@ -54,10 +64,13 @@ def list_files() -> list[dict]:
             if name.startswith(".") or p.suffix.lower() not in LANGS:
                 continue
             st = p.stat()
+            lang = LANGS[p.suffix.lower()]
+            runnable = p.suffix.lower() in RUNNABLE
             out.append({
                 "path": p.relative_to(WORKSPACE).as_posix(),
-                "lang": LANGS[p.suffix.lower()],
-                "runnable": p.suffix.lower() in RUNNABLE,
+                "lang": lang,
+                "runnable": runnable,
+                "build": DEFAULT_BUILD.get(lang) if runnable else None,
                 "size": st.st_size,
                 "mtime": st.st_mtime,
             })
@@ -86,18 +99,30 @@ def delete_file(rel: str) -> None:
     if not p.is_file():
         raise WorkspaceError(f"no such file: {rel}")
     p.unlink()
-    out = _binary_for(p)
-    if out.exists():
-        out.unlink()
+    for b in BUILD_DIR.glob(_binary_stem(p) + "-*"):
+        b.unlink(missing_ok=True)
 
 
-def _binary_for(src: Path) -> Path:
-    rel = src.relative_to(WORKSPACE.resolve()).as_posix()
-    return BUILD_DIR / rel.replace("/", "__").rsplit(".", 1)[0]
+def _binary_stem(src: Path) -> str:
+    rel = src.resolve().relative_to(WORKSPACE.resolve()).as_posix()
+    return rel.replace("/", "__").rsplit(".", 1)[0]
 
 
-async def build(rel: str) -> dict:
-    """Compile a C/C++ file if needed. Returns a 'build' message (ok, argv to run, compiler output)."""
+def _binary_for(src: Path, template: str) -> Path:
+    """One cached binary per (source, build command), so switching flags never runs a stale build."""
+    return BUILD_DIR / f"{_binary_stem(src)}-{hashlib.sha1(template.encode()).hexdigest()[:8]}"
+
+
+def _fail(msg: str, template: str, ms: int = 0) -> dict:
+    return {"type": "build", "ok": False, "needed": True, "cached": False, "argv": [],
+            "cmd": template, "template": template, "output": msg, "ms": ms}
+
+
+async def build(rel: str, template: str | None = None) -> dict:
+    """Compile a C/C++ file if needed, with the default or a custom build command template.
+
+    Returns a 'build' message: ok, argv to run, the command shown to the user, compiler output.
+    """
     src = resolve(rel)
     if not src.is_file():
         raise WorkspaceError(f"no such file: {rel}")
@@ -109,28 +134,48 @@ async def build(rel: str) -> dict:
     if ext == ".sh":
         return {"type": "build", "ok": True, "needed": False, "argv": ["bash", str(src)], "output": ""}
 
-    out = _binary_for(src)
+    template = (template or "").strip() or DEFAULT_BUILD[LANGS[ext]]
+    if "{src}" not in template or "{out}" not in template:
+        return _fail("The build command must contain {src} (the source file) and {out} (the binary to run).\n"
+                     f"Default: {DEFAULT_BUILD[LANGS[ext]]}", template)
+    try:
+        tokens = shlex.split(template)
+    except ValueError as e:
+        return _fail(f"Could not parse the build command: {e}", template)
+
+    out = _binary_for(src, template)
     # Rebuild if the source or any header in the workspace is newer than the binary.
     newest = max([src.stat().st_mtime] + [h.stat().st_mtime for h in WORKSPACE.rglob("*.h*") if h.is_file()])
     if out.exists() and out.stat().st_mtime >= newest:
         return {"type": "build", "ok": True, "needed": False, "cached": True, "argv": [str(out)],
-                "cmd": "", "output": "", "ms": 0}
+                "cmd": "", "template": template, "output": "", "ms": 0}
 
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
-    compiler, flags = ("g++", CXXFLAGS) if ext != ".c" else ("gcc", CFLAGS)
     rel_src = src.relative_to(WORKSPACE.resolve()).as_posix()  # relative, so errors read "threads.cpp:12:3"
-    cmd = [compiler, *flags, "-I", str(WORKSPACE), "-I", str(ROOT / "instrument"), "-o", str(out), rel_src]
+    argv = [t.replace("{src}", rel_src).replace("{out}", str(out)) for t in tokens]
+    shown = [t.replace("{src}", rel_src).replace("{out}", f".build/{out.name}") for t in tokens]
+    if _COMPILER.match(os.path.basename(argv[0])):
+        argv += ["-I", str(WORKSPACE), "-I", str(ROOT / "instrument")]
+        shown += ["-I", "workspace", "-I", "instrument"]
+    cmd = shlex.join(shown)
+
     t0 = time.monotonic()
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, cwd=str(WORKSPACE))
+    ms = lambda: round((time.monotonic() - t0) * 1000)  # noqa: E731
     try:
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
-    except asyncio.TimeoutError:
-        proc.kill()
-        return {"type": "build", "ok": False, "needed": True, "argv": [], "output": "compile timed out", "ms": 120000}
+        # No shell: the command is split like a shell would, but pipes/redirects aren't interpreted.
+        proc = await asyncio.to_thread(
+            subprocess.run, argv, cwd=str(WORKSPACE), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL, timeout=BUILD_TIMEOUT_S, close_fds=True)
+    except FileNotFoundError:
+        return _fail(f"command not found: {argv[0]}", template, ms())
+    except subprocess.TimeoutExpired:
+        return _fail(f"build timed out after {BUILD_TIMEOUT_S} s", template, ms())
+    output = proc.stdout.decode(errors="replace")
     ok = proc.returncode == 0
+    if ok and not out.exists():
+        ok = False
+        output += "\nThe command succeeded but did not create {out} — make sure it writes the binary to {out}."
     if not ok and out.exists():
         out.unlink()
-    short = " ".join([compiler, *flags, "-o", f".build/{out.name}", rel_src])
     return {"type": "build", "ok": ok, "needed": True, "cached": False, "argv": [str(out)] if ok else [],
-            "cmd": short, "output": stdout.decode(errors="replace"), "ms": round((time.monotonic() - t0) * 1000)}
+            "cmd": cmd, "template": template, "output": output, "ms": ms()}
