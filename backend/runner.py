@@ -1,7 +1,7 @@
 """DigInside Cache mode runner: compile an instrumented C++ program, run it, collect its trace.
 
 Programs use instrument/tarray.hpp; the trace goes to the file named by $DIGINSIDE_TRACE.
-Sources come from instrument/examples/ ("examples") or the workspace ("workspace").
+Sources come from workspace/cache/ ("examples") or anywhere in the workspace ("workspace").
 Binaries are cached in instrument/.build/, traces in memory (keyed by binary + args), so changing
 only the cache geometry re-simulates without recompiling or re-running.
 """
@@ -21,7 +21,7 @@ import workspace
 
 ROOT = Path(__file__).resolve().parent.parent
 INSTRUMENT = ROOT / "instrument"
-EXAMPLES = INSTRUMENT / "examples"
+EXAMPLES = workspace.WORKSPACE / "cache"
 BUILD_DIR = INSTRUMENT / ".build"
 HEADER = INSTRUMENT / "tarray.hpp"
 
@@ -80,7 +80,7 @@ def list_sources() -> list[dict]:
     for p in sorted(EXAMPLES.glob("*.cpp")):
         out.append({"origin": "examples", "file": p.name, **_describe(p)})
     for f in workspace.list_files():
-        if f["lang"] != "cpp" or not f["runnable"]:
+        if f["lang"] != "cpp" or not f["runnable"] or f["path"].startswith("cache/"):
             continue
         p = workspace.WORKSPACE / f["path"]
         try:

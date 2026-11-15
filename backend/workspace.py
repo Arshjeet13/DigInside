@@ -66,15 +66,47 @@ def list_files() -> list[dict]:
             st = p.stat()
             lang = LANGS[p.suffix.lower()]
             runnable = p.suffix.lower() in RUNNABLE
+            hints = header_hints(p)
             out.append({
                 "path": p.relative_to(WORKSPACE).as_posix(),
                 "lang": lang,
                 "runnable": runnable,
                 "build": DEFAULT_BUILD.get(lang) if runnable else None,
+                "args": hints["args"],
+                "cache": hints["cache"],
+                "traced": hints["traced"],
                 "size": st.st_size,
                 "mtime": st.st_mtime,
             })
     return out
+
+
+def header_hints(p: Path) -> dict:
+    """Read hints from a file's leading comments: '// args: ...' (or '# args:'), '// cache: s E b',
+    and whether it uses tarray.hpp (so Cache modules can trace it)."""
+    args, cache, traced = None, None, False
+    try:
+        text = p.read_text(errors="replace")
+    except OSError:
+        return {"args": None, "cache": None, "traced": False}
+    traced = "tarray.hpp" in text
+    for line in text.splitlines()[:30]:
+        body = line.strip()
+        for prefix in ("//", "#"):
+            if body.startswith(prefix):
+                body = body[len(prefix):].strip()
+                break
+        else:
+            continue
+        if body.startswith("args:") and args is None:
+            args = body[5:].strip()
+        elif body.startswith("cache:") and cache is None:
+            try:
+                s, E, b = (int(x) for x in body[6:].split()[:3])
+                cache = {"s": s, "E": E, "b": b}
+            except ValueError:
+                pass
+    return {"args": args, "cache": cache, "traced": traced}
 
 
 def read_file(rel: str) -> str:
