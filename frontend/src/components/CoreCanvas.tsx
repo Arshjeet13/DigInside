@@ -21,6 +21,7 @@ import ProgramNode, { type ProgramNodeData, type ProgramNodeType } from "./Progr
 import PinEdge, { type PinEdgeType } from "./PinEdge";
 import { CanvasContext, type CanvasApi } from "./canvasContext";
 import { FILE_DRAG_TYPE } from "./FileSidebar";
+import BuildDialog from "./BuildDialog";
 import type { WorkspaceFile } from "../api";
 import type { RunSession, RunStore } from "../system/runs";
 import type { ThreadSample, TickMsg } from "../system/types";
@@ -177,7 +178,10 @@ export default function CoreCanvas(props: Props) {
       const d = n.data as ProgramNodeData;
       const cpusPinned = pinnedFor(id);
       lastPin.current.set(id, cpusPinned.join(","));
-      store.startRun({ key: id, label: d.file, hue: d.hue }, { file: d.file, args: d.args, strace: d.strace, cpus: cpusPinned });
+      store.startRun(
+        { key: id, label: d.file, hue: d.hue },
+        { file: d.file, args: d.args, strace: d.strace, cpus: cpusPinned, build: d.build || undefined },
+      );
       onRunStarted(id);
     },
     [nodes, pinnedFor, store, onRunStarted],
@@ -186,6 +190,7 @@ export default function CoreCanvas(props: Props) {
   const updateProgram = useCallback((id: string, patch: Partial<ProgramNodeData>) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
   }, []);
+  const [buildEditing, setBuildEditing] = useState<string | null>(null);
 
   const api: CanvasApi = useMemo(
     () => ({
@@ -195,6 +200,7 @@ export default function CoreCanvas(props: Props) {
       runProgram,
       stopProgram: store.stopRun,
       updateProgram,
+      editBuild: setBuildEditing,
       openCode,
       focusedKey,
     }),
@@ -245,6 +251,8 @@ export default function CoreCanvas(props: Props) {
             lang: f.lang,
             args: DEFAULT_ARGS[f.path] ?? "",
             strace: true,
+            build: f.build ?? undefined,
+            defaultBuild: f.build ?? undefined,
             hue: HUES[count % HUES.length],
           },
         };
@@ -388,6 +396,24 @@ export default function CoreCanvas(props: Props) {
           </Panel>
         </ReactFlow>
       </div>
+      {(() => {
+        const n = buildEditing ? nodes.find((x) => x.id === buildEditing) : undefined;
+        if (!n) return null;
+        const d = n.data as ProgramNodeData;
+        return (
+          <BuildDialog
+            file={d.file}
+            lang={d.lang}
+            value={d.build ?? d.defaultBuild ?? ""}
+            defaultBuild={d.defaultBuild ?? ""}
+            onSave={(build) => {
+              updateProgram(n.id, { build });
+              setBuildEditing(null);
+            }}
+            onClose={() => setBuildEditing(null)}
+          />
+        );
+      })()}
     </CanvasContext.Provider>
   );
 }

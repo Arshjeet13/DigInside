@@ -8,7 +8,8 @@ export interface CanvasApi {
   pinnedFor: (nodeId: string) => number[];
   runProgram: (nodeId: string) => void;
   stopProgram: (nodeId: string) => void;
-  updateProgram: (nodeId: string, patch: Partial<{ args: string; strace: boolean }>) => void;
+  updateProgram: (nodeId: string, patch: Partial<{ args: string; strace: boolean; build: string }>) => void;
+  editBuild: (nodeId: string) => void;
   openCode: (path: string, lang: WorkspaceFile["lang"]) => void;
   focusedKey: string | null;
 }

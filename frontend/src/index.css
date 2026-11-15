@@ -183,3 +183,16 @@ button, input, select { font: inherit; color: inherit; }
 /* pin edges */
 .edge-remove { position: absolute; pointer-events: all; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: #8e1519; color: #fff; font-size: 14px; line-height: 16px; padding: 0; cursor: pointer; box-shadow: 0 1px 6px rgba(0,0,0,0.5); z-index: 10; }
 .edge-remove:hover { background: #da3633; transform-origin: center; }
+
+/* build command */
+.prog-build { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.prog-build code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 5px; }
+.build-modal { width: min(720px, 92vw); }
+.build-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.build-text { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-family: var(--mono); font-size: 13px; resize: vertical; color: var(--text); }
+.build-body code { font-family: var(--mono); background: var(--panel2); padding: 0 3px; border-radius: 3px; }
+.build-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.preset-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.preset-btn:hover { border-color: var(--muted); }
+.preset-btn.active { border-color: var(--accent); }
+.modal-foot { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); }

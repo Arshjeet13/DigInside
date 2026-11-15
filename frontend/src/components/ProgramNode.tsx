@@ -9,10 +9,12 @@ export type ProgramNodeData = {
   args: string;
   strace: boolean;
   hue: number;
+  build?: string; // build command template (C/C++); undefined = server default
+  defaultBuild?: string;
 };
 export type ProgramNodeType = Node<ProgramNodeData, "program">;
 
-export const PROGRAM_W = 240;
+export const PROGRAM_W = 270;
 
 function statusLine(run: RunSession | undefined): [string, string] {
   if (!run) return ["ready", "muted"];
@@ -66,6 +68,14 @@ export default function ProgramNode({ id, data, selected }: NodeProps<ProgramNod
             onKeyDown={(e) => e.key === "Enter" && !active && api.runProgram(id)}
           />
         </label>
+        {(data.lang === "cpp" || data.lang === "c") && (
+          <div className="prog-build">
+            <span className="muted">build</span>
+            <code title={data.build ?? data.defaultBuild ?? "default"}>{data.build ?? data.defaultBuild ?? "(default)"}</code>
+            {data.build && data.defaultBuild && data.build !== data.defaultBuild && <span className="warn" title="custom build command">●</span>}
+            <button className="btn small nodrag" disabled={active} onClick={() => api.editBuild(id)} title="Edit the compile command">edit</button>
+          </div>
+        )}
         <div className="prog-row">
           <label className="check nodrag" title="Trace syscalls with strace">
             <input

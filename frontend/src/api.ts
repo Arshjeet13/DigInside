@@ -9,6 +9,7 @@ export interface WorkspaceFile {
   path: string;
   lang: "cpp" | "c" | "python" | "shell";
   runnable: boolean;
+  build: string | null; // default build command template for C/C++ ({src}, {out}); null otherwise
   size: number;
   mtime: number;
 }

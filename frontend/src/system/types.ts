@@ -123,7 +123,7 @@ export type SystemMsg = StartMsg | TickMsg | ExitMsg | ErrorMsg | BuildMsg | Pin
 /** What the client sends to start a run. */
 export type RunRequest =
   | { cmd: string; strace: boolean; cpus?: number[]; interval_ms?: number }
-  | { file: string; args: string; strace: boolean; cpus?: number[]; interval_ms?: number };
+  | { file: string; args: string; build?: string; strace: boolean; cpus?: number[]; interval_ms?: number };
 
 /** Running totals computed client-side as each tick arrives (includes exited threads). */
 export interface TickAgg {
