@@ -11,6 +11,8 @@ export type ProgramNodeData = {
   hue: number;
   build?: string; // build command template (C/C++); undefined = server default
   defaultBuild?: string;
+  traced?: boolean; // uses tarray.hpp (can feed a Cache module)
+  cacheHint?: { s: number; E: number; b: number }; // suggested cache geometry from the file header
 };
 export type ProgramNodeType = Node<ProgramNodeData, "program">;
 

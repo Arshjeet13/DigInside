@@ -10,6 +10,9 @@ export interface WorkspaceFile {
   lang: "cpp" | "c" | "python" | "shell";
   runnable: boolean;
   build: string | null; // default build command template for C/C++ ({src}, {out}); null otherwise
+  args: string | null; // default args from a '// args:' header comment
+  cache: { s: number; E: number; b: number } | null; // suggested cache geometry ('// cache: s E b')
+  traced: boolean; // uses tarray.hpp, so a Cache module can trace it
   size: number;
   mtime: number;
 }

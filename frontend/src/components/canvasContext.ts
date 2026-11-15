@@ -1,5 +1,22 @@
 import { createContext, useContext } from "react";
 import type { RunSession } from "../system/runs";
+import type { CacheResponse } from "../cache/types";
+
+export interface CacheRun {
+  status: "idle" | "tracing" | "ready" | "error";
+  resp?: CacheResponse;
+  error?: string;
+  program?: { file: string; args: string };
+  geoKey?: string;
+  cursor: number;
+}
+
+export interface CachePreset {
+  label: string;
+  g: { s: number; E: number; b: number };
+  disabled?: boolean;
+  title?: string;
+}
 import type { WorkspaceFile } from "../api";
 
 export interface CanvasApi {
@@ -11,6 +28,11 @@ export interface CanvasApi {
   updateProgram: (nodeId: string, patch: Partial<{ args: string; strace: boolean; build: string }>) => void;
   editBuild: (nodeId: string) => void;
   unpinAll: (nodeId: string) => void;
+  getCacheRun: (cacheId: string) => CacheRun | undefined;
+  cacheProgram: (cacheId: string) => { nodeId: string; file: string; traced?: boolean } | null;
+  updateCache: (cacheId: string, patch: Partial<{ s: number; E: number; b: number; name: string }>) => void;
+  inspectCache: (cacheId: string) => void;
+  cachePresets: (cacheId: string) => CachePreset[];
   openCode: (path: string, lang: WorkspaceFile["lang"]) => void;
   focusedKey: string | null;
 }

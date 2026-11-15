@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useReactFlow, type Edge, type EdgeProps } from "@xyflow/react";
 
-export type PinEdgeData = { hue: number };
+export type PinEdgeData = { hue: number; kind?: "pin" | "trace" };
 export type PinEdgeType = Edge<PinEdgeData, "pin">;
 
 /** Program → CPU edge (= CPU pin). Highlights when selected; hover or select shows a × to unpin. */
@@ -24,6 +24,7 @@ export default function PinEdge(props: EdgeProps<PinEdgeType>) {
   };
 
   const hue = data?.hue ?? 200;
+  const trace = data?.kind === "trace";
   const hot = selected || hover;
   return (
     <>
@@ -36,6 +37,7 @@ export default function PinEdge(props: EdgeProps<PinEdgeType>) {
           style={{
             stroke: selected ? "#ffffff" : `hsl(${hue} 70% ${hover ? 72 : 60}%)`,
             strokeWidth: selected ? 4 : hover ? 3 : 2,
+            strokeDasharray: trace ? "7 5" : undefined,
           }}
         />
       </g>
@@ -44,7 +46,7 @@ export default function PinEdge(props: EdgeProps<PinEdgeType>) {
           <button
             className="edge-remove nodrag nopan"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            title="Unpin (remove this edge)"
+            title={trace ? "Disconnect from this cache" : "Unpin (remove this edge)"}
             onMouseEnter={enter}
             onMouseLeave={leave}
             onClick={(e) => {

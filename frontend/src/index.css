@@ -273,7 +273,7 @@ button, input, select { font: inherit; color: inherit; }
 .lx-access { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; flex-wrap: wrap; }
 .lx-acc-op { font-family: var(--mono); font-size: 11px; padding: 0 6px; border-radius: 3px; background: #2a303b; }
 .lx-res { color: #0f1115; font-weight: 700; font-size: 12px; padding: 1px 8px; border-radius: 10px; }
-.lx-cols { flex: 1; display: grid; grid-template-columns: 170px minmax(260px, 1fr) 300px; gap: 40px; padding: 10px 12px; min-height: 0; }
+.lx-cols { flex: 1; display: grid; grid-template-columns: minmax(170px, max-content) minmax(260px, 1fr) 300px; gap: 40px; padding: 10px 12px; min-height: 0; }
 .lx-col { overflow-y: auto; min-height: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); padding: 0 8px 8px; }
 .lx-col-title { position: sticky; top: 0; z-index: 2; background: var(--panel); padding: 8px 0 6px; font-size: 12px; font-weight: 600; font-family: var(--mono); border-bottom: 1px solid var(--border); margin-bottom: 6px; }
 .lx-col-title .muted { font-weight: normal; }
@@ -282,9 +282,9 @@ button, input, select { font: inherit; color: inherit; }
 .lx-set:hover { background: var(--panel2); }
 .lx-set.sel { background: #1d2a40; border-color: var(--accent); }
 .lx-set.cur { box-shadow: inset 3px 0 0 0 currentColor; }
-.lx-set-name { width: 56px; color: var(--muted); }
+.lx-set-name { width: 56px; flex: none; color: var(--muted); white-space: nowrap; }
 .lx-set.sel .lx-set-name { color: var(--text); }
-.lx-set-lines { display: flex; flex-wrap: wrap; gap: 2px; }
+.lx-set-lines { display: flex; flex-wrap: nowrap; gap: 2px; }
 .lx-set-lines i { width: 9px; height: 12px; border-radius: 2px; }
 .lx-set-lines i.empty { border: 1px dashed #3a4150; }
 
@@ -317,3 +317,32 @@ button, input, select { font: inherit; color: inherit; }
 
 .lx-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 3; }
 .lx-wires path { fill: none; stroke-width: 2.5; }
+
+/* ---------- modules on the canvas ---------- */
+.palette { position: relative; display: flex; gap: 6px; }
+.palette-menu { position: absolute; right: 0; top: calc(100% + 6px); width: 300px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding: 4px; z-index: 20; }
+.palette-menu button { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; text-align: left; width: 100%; background: none; border: none; border-radius: 6px; padding: 8px; cursor: pointer; }
+.palette-menu button:hover { background: var(--panel2); }
+
+.cache-module { background: var(--panel2); border: 2px solid #6e5bb8; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.45); font-size: 12px; }
+.cache-module.selected { outline: 2px solid #fff; outline-offset: 2px; }
+.cm-head { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #2d2550; border-radius: 8px 8px 0 0; cursor: grab; }
+.cm-icon { color: #b8a6ff; }
+.cm-name { font-weight: 700; font-family: var(--mono); flex: 1; }
+.cm-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.cm-preset { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 3px 4px; font-size: 12px; }
+.cm-geo { display: flex; align-items: center; gap: 6px; }
+.cm-num { display: flex; align-items: center; gap: 3px; font-family: var(--mono); color: var(--muted); }
+.cm-num input { width: 40px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; font-family: var(--mono); color: var(--text); }
+.cm-status { line-height: 1.4; }
+.cm-stats b { font-size: 16px; }
+.cm-mix { display: flex; height: 8px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px; background: #22272f; }
+.cm-mini { display: grid; gap: 6px; margin-top: 6px; justify-content: start; }
+.cm-mini-group { display: grid; gap: 1px; }
+.cm-mini-group i { display: block; border-radius: 1px; }
+.react-flow__handle.cm-handle { width: 12px; height: 12px; background: #6e5bb8; border: 2px solid #fff; }
+
+.inspector { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; }
+.insp-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: #1a1830; }
+.insp-body { flex: 1; display: flex; min-height: 0; }
+.insp-main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
