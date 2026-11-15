@@ -5,7 +5,7 @@ A visual playground for how programs use the machine, built for courses like CS 
 - **Threads on cores.** Run a program and watch its threads land on CPU cores, migrate, and compete. Pin programs to cores by drawing edges, and compare runs to see parallel speedup.
 - **Cache, access by access.** Connect a program to a simulated cache and step through every load and store: which set it maps to, whether it hits or misses (cold, conflict or capacity), and which of your variables each cache line holds.
 
-![Threads of a matrix multiply spread across 8 cores](docs/screenshots/canvas.png)
+![Two programs pinned to rearranged CPU cores: matmul's 8 threads share CPUs 0-3, a spinning program owns CPUs 4-5](docs/screenshots/canvas.png)
 ![Stepping through a C program's memory accesses in the cache inspector](docs/screenshots/cache-inspector.png)
 
 | Parallel speedup across runs | A program feeding a cache module |
