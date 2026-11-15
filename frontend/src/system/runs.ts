@@ -1,11 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BuildMsg, ExitMsg, Frame, RunRequest, StartMsg, SystemMsg, ThreadSample } from "./types";
+import { computeResidency, parallelism } from "./residency";
 
 export type RunStatus = "connecting" | "building" | "running" | "exited" | "error";
 
 const MAX_FRAMES = 6000; // 5 minutes at 50ms
 
+/** One finished run, kept per program node so runs with different args can be compared. */
+export interface RunSummary {
+  n: number; // run number for this node (1, 2, ...)
+  args: string;
+  pinned: number[] | null;
+  strace: boolean;
+  outcome: string; // "exit 0", "stopped", "SIGSEGV", ...
+  wallMs: number;
+  cpuMs: number; // user + kernel, all threads
+  userMs: number;
+  kernelMs: number;
+  avgCores: number;
+  workers: number;
+  perWorkerMs: number;
+  threads: number;
+}
+
 export interface RunMeta {
+  args?: string;
   key: string; // owner: the program node id
   label: string;
   hue: number;
@@ -31,7 +50,7 @@ export class RunSession {
   private ws: WebSocket;
   private closed = false;
 
-  constructor(meta: RunMeta, req: RunRequest, private onChange: () => void) {
+  constructor(meta: RunMeta, req: RunRequest, private onChange: () => void, private onExit?: (s: RunSession) => void) {
     this.meta = meta;
     this.pinned = req.cpus?.length ? [...req.cpus].sort((a, b) => a - b) : null;
     const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -132,6 +151,7 @@ export class RunSession {
       case "exit":
         this.exit = m;
         this.status = "exited";
+        this.onExit?.(this);
         break;
       case "error":
         this.error = m.message;
@@ -144,6 +164,8 @@ export class RunSession {
 
 export interface RunStore {
   version: number;
+  history: (key: string) => RunSummary[];
+  clearHistory: (key: string) => void;
   get: (key: string) => RunSession | undefined;
   all: () => RunSession[];
   startRun: (meta: RunMeta, req: RunRequest) => RunSession;
@@ -171,13 +193,43 @@ export function useRunStore(): RunStore {
     bump();
   }, [bump]);
 
+  const histories = useRef(new Map<string, RunSummary[]>());
+  const record = useCallback((s: RunSession) => {
+    const e = s.exit;
+    if (!e) return;
+    const list = histories.current.get(s.meta.key) ?? [];
+    const cpuMs = e.user_ms + e.kernel_ms;
+    const p = parallelism(cpuMs, e.wall_s * 1000, computeResidency(s.frames, s.frames.length - 1));
+    list.push({
+      n: list.length ? list[list.length - 1].n + 1 : 1,
+      args: s.meta.args ?? "",
+      pinned: s.pinned,
+      strace: s.start?.strace ?? false,
+      outcome: e.killed ? "stopped" : e.signal ?? `exit ${e.code}`,
+      wallMs: e.wall_s * 1000,
+      cpuMs,
+      userMs: e.user_ms,
+      kernelMs: e.kernel_ms,
+      avgCores: p.avgCores,
+      workers: p.workers,
+      perWorkerMs: p.perWorkerMs,
+      threads: s.threadIndex.size,
+    });
+    histories.current.set(s.meta.key, list.slice(-20));
+  }, []);
+  const history = useCallback((key: string) => histories.current.get(key) ?? [], []);
+  const clearHistory = useCallback((key: string) => {
+    histories.current.delete(key);
+    bump();
+  }, [bump]);
+
   const startRun = useCallback((meta: RunMeta, req: RunRequest) => {
     sessions.current.get(meta.key)?.dispose(); // one run per owner; replacing kills the old one
-    const s = new RunSession(meta, req, bump);
+    const s = new RunSession(meta, req, bump, record);
     sessions.current.set(meta.key, s);
     bump();
     return s;
-  }, [bump]);
+  }, [bump, record]);
 
   const stopRun = useCallback((key: string) => sessions.current.get(key)?.stop(), []);
   const get = useCallback((key: string) => sessions.current.get(key), []);
@@ -187,5 +239,5 @@ export function useRunStore(): RunStore {
     for (const s of sessions.current.values()) s.dispose();
   }, []);
 
-  return { version, get, all, startRun, stopRun, removeRun };
+  return { version, get, all, startRun, stopRun, removeRun, history, clearHistory };
 }

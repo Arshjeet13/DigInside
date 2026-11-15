@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { Frame } from "../system/types";
+import { computeResidency, type PerCpu } from "../system/residency";
 
 interface Props {
   frames: Frame[];
@@ -9,43 +10,6 @@ interface Props {
   selectedTid: number | null;
   onSelectThread: (tid: number | null) => void;
   hue: number;
-}
-
-type PerCpu = Map<number, number>; // cpu -> ms on that CPU
-
-interface Residency {
-  program: PerCpu;
-  threads: Map<number, { perCpu: PerCpu; total: number; migrations: number; comm: string }>;
-  total: number;
-  migrations: number;
-}
-
-/**
- * Where the program's CPU time went, per core. Every sample, each thread's on-CPU time since the
- * previous sample (exact, from schedstat) is credited to the CPU it was on at sample time.
- */
-function computeResidency(frames: Frame[], upto: number): Residency {
-  const r: Residency = { program: new Map(), threads: new Map(), total: 0, migrations: 0 };
-  for (let i = 0; i <= upto && i < frames.length; i++) {
-    for (const t of frames[i].tick.threads) {
-      const ms = t.d_run_ms ?? 0;
-      let th = r.threads.get(t.tid);
-      if (!th) {
-        th = { perCpu: new Map(), total: 0, migrations: 0, comm: t.comm };
-        r.threads.set(t.tid, th);
-      }
-      if (t.migrated) {
-        th.migrations++;
-        r.migrations++;
-      }
-      if (ms <= 0) continue;
-      th.perCpu.set(t.cpu, (th.perCpu.get(t.cpu) ?? 0) + ms);
-      th.total += ms;
-      r.program.set(t.cpu, (r.program.get(t.cpu) ?? 0) + ms);
-      r.total += ms;
-    }
-  }
-  return r;
 }
 
 const sorted = (m: PerCpu) => [...m.entries()].sort((a, b) => b[1] - a[1]);

@@ -9,6 +9,7 @@ import OutputPanel from "./components/OutputPanel";
 import ThreadDetail from "./components/ThreadDetail";
 import FileSidebar from "./components/FileSidebar";
 import CpuTimePanel from "./components/CpuTimePanel";
+import RunHistory from "./components/RunHistory";
 import CodeViewer from "./components/CodeViewer";
 import { useRunStore } from "./system/runs";
 import CacheView from "./components/cache/CacheView";
@@ -88,7 +89,7 @@ export default function App() {
         <CacheView openCode={(path, lang, load) => setViewer({ path, lang, load })} />
       ) : (
         <>
-          <StatsBar run={run} frame={frame} atEnd={atEnd} />
+          <StatsBar run={run} frame={frame} index={index} version={store.version} atEnd={atEnd} />
           <div className="workspace">
             <FileSidebar files={files} error={filesError} onRefresh={refreshFiles} onOpen={(f) => openCode(f.path, f.lang)} />
             <main className="canvas">
@@ -129,6 +130,13 @@ export default function App() {
             <aside className="sidebar">
               {selTid !== null && run && (
                 <ThreadDetail t={selThread} idx={run.threadIndex.get(selTid) ?? 0} onClose={() => setSelected(null)} />
+              )}
+              {focusedKey && (
+                <RunHistory
+                  label={run?.meta.label ?? ""}
+                  rows={store.history(focusedKey)}
+                  onClear={() => store.clearHistory(focusedKey)}
+                />
               )}
               {run && (
                 <CpuTimePanel

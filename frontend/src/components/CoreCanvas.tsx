@@ -284,7 +284,7 @@ export default function CoreCanvas(props: Props) {
       const cpusPinned = pinnedFor(id);
       lastPin.current.set(id, cpusPinned.join(","));
       store.startRun(
-        { key: id, label: d.file, hue: d.hue },
+        { key: id, label: d.file, hue: d.hue, args: d.args },
         { file: d.file, args: d.args, strace: d.strace, cpus: cpusPinned, build: d.build || undefined },
       );
       // ...and trace its memory accesses into every cache module it's connected to.

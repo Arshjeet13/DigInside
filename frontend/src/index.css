@@ -377,3 +377,10 @@ button, input, select { font: inherit; color: inherit; }
 .mem-res.in { background: #1f4a2c; color: var(--user); font-weight: 700; }
 .lx-follow { margin-left: auto; flex: none; }
 .lx-el { text-overflow: clip; }
+
+/* run history */
+.panel.run-history { flex: none; }
+.rh-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rh-table th { text-align: right; font-weight: normal; color: var(--muted); font-size: 11px; padding: 1px 4px; cursor: help; }
+.rh-table td { padding: 1px 4px; white-space: nowrap; }
+.rh-table .rh-args { text-align: left; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
