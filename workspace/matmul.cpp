@@ -37,10 +37,9 @@ int main(int argc, char** argv) {
     if (p > n) p = n;  // at least one row per thread
 
     std::vector<double> A(size_t(n) * n), B(size_t(n) * n), C(size_t(n) * n, 0.0);
-    std::mt19937_64 rng(42);
-    std::uniform_real_distribution<double> d(-1.0, 1.0);
-    for (auto& x : A) x = d(rng);
-    for (auto& x : B) x = d(rng);
+    // Cheap deterministic fill (a random generator here would add serial work before the threads start).
+    for (size_t i = 0; i < A.size(); i++) A[i] = double(int(i * 7 % 13) - 6) * 0.25;
+    for (size_t i = 0; i < B.size(); i++) B[i] = double(int(i * 5 % 11) - 5) * 0.5;
     printf("C = A * B with N = %d (%.2f G multiply-adds), %d thread%s, order %s\n",
            n, double(n) * n * n / 1e9, p, p == 1 ? "" : "s", order.c_str());
 
