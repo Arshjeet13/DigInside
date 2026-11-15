@@ -191,6 +191,8 @@ export default function CoreCanvas(props: Props) {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
   }, []);
   const [buildEditing, setBuildEditing] = useState<string | null>(null);
+  // Removing a program's edges unpins it; the re-pin effect above applies it live if it's running.
+  const unpinAll = useCallback((id: string) => setEdges((es) => es.filter((e) => e.source !== id)), []);
 
   const api: CanvasApi = useMemo(
     () => ({
@@ -201,10 +203,11 @@ export default function CoreCanvas(props: Props) {
       stopProgram: store.stopRun,
       updateProgram,
       editBuild: setBuildEditing,
+      unpinAll,
       openCode,
       focusedKey,
     }),
-    [store.version, store.get, store.stopRun, pinnedFor, runProgram, updateProgram, openCode, focusedKey],
+    [store.version, store.get, store.stopRun, pinnedFor, runProgram, updateProgram, unpinAll, openCode, focusedKey],
   );
 
   // ---- React Flow change handlers (thread chips are derived, never stored)

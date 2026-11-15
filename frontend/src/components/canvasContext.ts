@@ -10,6 +10,7 @@ export interface CanvasApi {
   stopProgram: (nodeId: string) => void;
   updateProgram: (nodeId: string, patch: Partial<{ args: string; strace: boolean; build: string }>) => void;
   editBuild: (nodeId: string) => void;
+  unpinAll: (nodeId: string) => void;
   openCode: (path: string, lang: WorkspaceFile["lang"]) => void;
   focusedKey: string | null;
 }

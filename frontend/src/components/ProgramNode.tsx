@@ -94,8 +94,19 @@ export default function ProgramNode({ id, data, selected }: NodeProps<ProgramNod
           )}
         </div>
         <div className="prog-pin" title="Drag from the ● handle to CPU nodes to pin; select an edge and press Delete to unpin">
-          {pinned.length ? `pinned to CPU ${pinned.join(", ")}` : "any CPU (not pinned)"}
-          {active && run?.pinned && pinned.join() !== run.pinned.join() && <span className="warn"> · applying…</span>}
+          <span className="prog-pin-text">
+            {pinned.length ? `pinned to CPU ${pinned.join(", ")}` : "any CPU (not pinned)"}
+            {active && run?.pinned && pinned.join() !== run.pinned.join() && <span className="warn"> · applying…</span>}
+          </span>
+          {pinned.length > 0 && (
+            <button
+              className="btn small nodrag"
+              title={`Remove all ${pinned.length} pin edge${pinned.length === 1 ? "" : "s"} from this program`}
+              onClick={() => api.unpinAll(id)}
+            >
+              unpin all
+            </button>
+          )}
         </div>
         <div className={`prog-status ${cls}`}>{text}</div>
       </div>
