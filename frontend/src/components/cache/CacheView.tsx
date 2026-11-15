@@ -5,6 +5,7 @@ import type { CacheResponse, CacheSource, HardwareCache } from "../../cache/type
 import { stateAt } from "../../cache/state";
 import CacheControls, { sourceKey, type Geo } from "./CacheControls";
 import CacheCanvas from "./CacheCanvas";
+import CacheExplorer from "./CacheExplorer";
 import CacheSidePanel from "./CacheSidePanel";
 import CacheTimeline from "./CacheTimeline";
 
@@ -25,6 +26,7 @@ export default function CacheView({ openCode }: Props) {
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(16);
+  const [view, setView] = useState<"explorer" | "grid">("explorer");
   const reqId = useRef(0);
 
   const src = sources.find((s) => sourceKey(s) === key);
@@ -150,6 +152,13 @@ export default function CacheView({ openCode }: Props) {
           )}
           {stale && resp?.ok && <div className="cache-stale">Program or arguments changed — press Run to trace again.</div>}
           {sim && state && resp?.ok && (
+            <div className="cache-viewtabs">
+              <button className={view === "explorer" ? "tab active" : "tab"} onClick={() => setView("explorer")}>Explorer</button>
+              <button className={view === "grid" ? "tab active" : "tab"} onClick={() => setView("grid")}>Grid overview</button>
+            </div>
+          )}
+          {sim && state && resp?.ok && view === "explorer" && <CacheExplorer sim={sim} state={state} current={current} />}
+          {sim && state && resp?.ok && view === "grid" && (
             <ReactFlowProvider>
               <CacheCanvas sim={sim} state={state} current={current} />
             </ReactFlowProvider>
