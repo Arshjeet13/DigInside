@@ -23,7 +23,7 @@ import json
 import math
 import os
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 HIT, COLD, CONFLICT, CAPACITY = 0, 1, 2, 3
 RESULT_NAMES = ["hit", "cold", "conflict", "capacity"]
@@ -111,8 +111,11 @@ class Trace:
     addrs: list[int]
     sizes: list[int]
     marks: list[dict]     # {"access": index of the next access, "label": str}
-    regions: list[dict]   # {"name", "base", "bytes", "elem"}
+    regions: list[dict]   # {"name", "base", "bytes", "elem", optional "kind": "global"|"heap"|"stack"}
     truncated: bool
+    line_ids: list[int] = field(default_factory=list)  # per access: index into `lines`, -1 = unknown
+    lines: list[dict] = field(default_factory=list)     # {"file", "line", "func", "text"}
+    note: str = ""                                      # how the trace was made / filtered
 
 
 def parse_trace(text: str) -> Trace:
@@ -168,6 +171,8 @@ def simulate(trace: Trace, g: Geometry, max_snapshots: int = 300) -> dict:
     ev_evict: list[int] = []   # tag evicted from that way, -1 if none
     ev_wb: list[int] = []      # 1 if the evicted block was dirty (write-back)
     ev_src: list[int] = []     # index of the trace access that produced this event
+    ev_line: list[int] = []    # source line (index into trace.lines) of the instruction, -1 if unknown
+    has_lines = len(trace.line_ids) == len(trace.ops)
 
     st = {"accesses": 0, "reads": 0, "writes": 0, "hits": 0, "misses": 0,
           "cold": 0, "conflict": 0, "capacity": 0, "evictions": 0, "writebacks": 0}
@@ -257,6 +262,7 @@ def simulate(trace: Trace, g: Geometry, max_snapshots: int = 300) -> dict:
             ev_evict.append(evicted)
             ev_wb.append(wb)
             ev_src.append(idx)
+            ev_line.append(trace.line_ids[idx] if has_lines else -1)
 
     while next_mark is not None:
         marks_out.append({"event": len(ev_op), "label": next_mark["label"]})
@@ -270,13 +276,15 @@ def simulate(trace: Trace, g: Geometry, max_snapshots: int = 300) -> dict:
         "geometry": g.to_dict(),
         "stats": st,
         "events": {"n": len(ev_op), "op": ev_op, "addr": ev_addr, "set": ev_set, "way": ev_way,
-                   "result": ev_res, "evict": ev_evict, "wb": ev_wb, "src": ev_src},
+                   "result": ev_res, "evict": ev_evict, "wb": ev_wb, "src": ev_src, "line": ev_line},
         "snapshots": snapshots,
         "snapshot_every": every,
         "marks": marks_out,
         "regions": trace.regions,
         "truncated": trace.truncated,
         "result_names": RESULT_NAMES,
+        "lines": trace.lines,
+        "note": trace.note,
     }
 
 

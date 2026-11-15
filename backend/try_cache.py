@@ -3,6 +3,7 @@
     backend/.venv/bin/python backend/try_cache.py matmul.cpp "32 ijk" -s 5 -E 1 -b 5
     backend/.venv/bin/python backend/try_cache.py transpose.cpp "8 naive 4 0" -s 2 -E 1 -b 5 -v
     backend/.venv/bin/python backend/try_cache.py mine.cpp "" --origin workspace
+    backend/.venv/bin/python backend/try_cache.py cache/arrays16.c "" --origin workspace --tracer valgrind -s 2 -E 1 -b 4 -v
 """
 import argparse
 import json
@@ -17,10 +18,13 @@ ap.add_argument("-s", type=int, default=5)
 ap.add_argument("-E", type=int, default=1)
 ap.add_argument("-b", type=int, default=5)
 ap.add_argument("-v", action="store_true", help="print every access (first 200)")
+ap.add_argument("--tracer", default="tarray", choices=["tarray", "valgrind"], help="valgrind: trace the real machine code (any C/C++)")
+ap.add_argument("--all", action="store_true", help="valgrind: keep every access, not just your code's")
 ap.add_argument("--url", default="http://127.0.0.1:8000/run_cache")
 a = ap.parse_args()
 
-body = {"origin": a.origin, "file": a.file, "args": a.args, "s": a.s, "E": a.E, "b": a.b}
+body = {"origin": a.origin, "file": a.file, "args": a.args, "s": a.s, "E": a.E, "b": a.b,
+        "tracer": a.tracer, "scope": "all" if a.all else "code"}
 req = urllib.request.Request(a.url, data=json.dumps(body).encode(), headers={"content-type": "application/json"})
 try:
     r = json.loads(urllib.request.urlopen(req).read())
@@ -34,6 +38,8 @@ if not r["ok"]:
 print("program:", r["run"]["output"].strip())
 sim = r["sim"]
 g, st = sim["geometry"], sim["stats"]
+if sim.get("note"):
+    print(sim["note"])
 print(f"cache: S={g['S']} sets x E={g['E']} ways x B={g['B']} bytes = {g['size']} bytes")
 print(f"accesses {st['accesses']} ({st['reads']} R / {st['writes']} W){' TRUNCATED' if sim['truncated'] else ''}")
 print(f"hits {st['hits']}  misses {st['misses']} ({1 - st['hit_rate']:.1%}): cold {st['cold']}, conflict {st['conflict']}, "
@@ -41,5 +47,7 @@ print(f"hits {st['hits']}  misses {st['misses']} ({1 - st['hit_rate']:.1%}): col
 if a.v:
     ev, names = sim["events"], sim["result_names"]
     for i in range(min(ev["n"], 200)):
-        print(f"  {'RW'[ev['op'][i]]} {ev['addr'][i]:x}  set {ev['set'][i]:3d} way {ev['way'][i]}  {names[ev['result'][i]]}"
-              + (f"  evict tag {ev['evict'][i]:x}" if ev["evict"][i] >= 0 else "") + ("  write-back" if ev["wb"][i] else ""))
+        ln = sim["lines"][ev["line"][i]] if sim.get("lines") and ev["line"][i] >= 0 else None
+        print(f"  {'RW'[ev['op'][i]]} {ev['addr'][i]:x}  set {ev['set'][i]:3d} way {ev['way'][i]}  {names[ev['result'][i]]:8s}"
+              + (f"  line {ln['line']}: {ln['text']}" if ln else "")
+              + (f"  (evict tag {ev['evict'][i]:x})" if ev["evict"][i] >= 0 else "") + ("  write-back" if ev["wb"][i] else ""))

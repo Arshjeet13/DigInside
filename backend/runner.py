@@ -17,6 +17,8 @@ import time
 from collections import OrderedDict
 from pathlib import Path
 
+import cache_sim
+import vgtrace
 import workspace
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -139,16 +141,41 @@ def _run_sync(binary: str, args: list[str], max_accesses: int) -> dict:
     return {"code": code, "output": out, "trace": trace, "ms": ms}
 
 
-async def trace_program(origin: str, file: str, args: str, max_accesses: int = DEFAULT_MAX_ACCESSES) -> dict:
-    """Build (if needed) and run; returns {"build", "run", "trace"}. Raises RunnerError for bad input."""
+async def trace_program(origin: str, file: str, args: str, max_accesses: int = DEFAULT_MAX_ACCESSES,
+                        tracer: str = "tarray", scope: str = "code", build: str | None = None) -> dict:
+    """Build (if needed) and run; returns {"build", "run", "trace": cache_sim.Trace | None}.
+
+    tracer "tarray": log accesses to dig::tarray arrays (source level, simulated addresses).
+    tracer "valgrind": log the real machine code's loads/stores (any C/C++ program); scope "code" keeps
+    only accesses made by the program's own code, "all" keeps everything. Raises RunnerError for bad input.
+    """
     src = _source(origin, file)
-    if src.suffix not in (".cpp", ".cc", ".cxx"):
-        raise RunnerError("Cache mode programs must be C++ files using tarray.hpp")
     try:
         argv = shlex.split(args or "")
     except ValueError as e:
         raise RunnerError(f"could not parse args: {e}")
     max_accesses = max(1, min(int(max_accesses), HARD_MAX_ACCESSES))
+
+    if tracer == "valgrind":
+        if origin != "workspace":
+            raise RunnerError("Valgrind tracing works on workspace files")
+        key = ("vg", str(src), src.stat().st_mtime, tuple(argv), max_accesses, scope, build or "")
+        if key in _trace_cache:
+            _trace_cache.move_to_end(key)
+            c = _trace_cache[key]
+            return {"build": c["build"], "run": {**c["run"], "cached": True}, "trace": c["trace"]}
+        try:
+            r = await asyncio.to_thread(vgtrace.trace, file, argv, scope, max_accesses, build)
+        except vgtrace.VgError as e:
+            raise RunnerError(str(e))
+        if r["trace"] is not None:
+            _trace_cache[key] = r
+            if len(_trace_cache) > _TRACE_CACHE_SIZE:
+                _trace_cache.popitem(last=False)
+        return r
+
+    if src.suffix not in (".cpp", ".cc", ".cxx"):
+        raise RunnerError("tarray tracing needs a C++ file using tarray.hpp (or switch the cache to Valgrind)")
 
     build = await asyncio.to_thread(_build_sync, src)
     if not build["ok"]:
@@ -161,7 +188,10 @@ async def trace_program(origin: str, file: str, args: str, max_accesses: int = D
         return {"build": build, "run": {**cached["run"], "cached": True}, "trace": cached["trace"]}
 
     run = await asyncio.to_thread(_run_sync, build["binary"], argv, max_accesses)
-    trace = run.pop("trace")
+    text = run.pop("trace")
+    trace = cache_sim.parse_trace(text) if text else None
+    if trace is not None:
+        trace.note = "tarray: accesses to dig::tarray arrays, at simulated addresses"
     run["cached"] = False
     if run["code"] == 0 or trace:
         _trace_cache[key] = {"run": run, "trace": trace}

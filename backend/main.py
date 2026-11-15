@@ -164,6 +164,9 @@ class CacheRequest(BaseModel):
     E: int = 2
     b: int = 5
     max_accesses: int = runner.DEFAULT_MAX_ACCESSES
+    tracer: str = "tarray"   # "tarray" | "valgrind"
+    scope: str = "code"      # valgrind: "code" = only your code's accesses, "all" = everything
+    build: str | None = None  # valgrind: the program's build command template
 
 
 @app.get("/api/cache/sources")
@@ -189,17 +192,20 @@ async def run_cache(req: CacheRequest) -> dict:
     geom = cache_sim.Geometry(req.s, req.E, req.b)
     try:
         cache_sim.validate(geom)
-        r = await runner.trace_program(req.origin, req.file, req.args, req.max_accesses)
+        if req.tracer not in ("tarray", "valgrind") or req.scope not in ("code", "all"):
+            raise ValueError("tracer must be tarray|valgrind and scope code|all")
+        r = await runner.trace_program(req.origin, req.file, req.args, req.max_accesses, req.tracer, req.scope, req.build)
     except (ValueError, runner.RunnerError, workspace.WorkspaceError) as e:
         raise HTTPException(400, str(e))
     if not r["build"]["ok"]:
         return {"ok": False, "stage": "build", "build": r["build"], "run": None, "sim": None}
-    if not r["trace"]:
-        return {"ok": False, "stage": "run", "build": r["build"], "run": r["run"], "sim": None,
-                "error": "the program produced no trace (does it use dig::tarray?)"}
+    if not r["trace"] or not r["trace"].ops:
+        why = ("the program produced no trace (does it use dig::tarray?)" if req.tracer == "tarray"
+               else "Valgrind saw no memory accesses from your code")
+        return {"ok": False, "stage": "run", "build": r["build"], "run": r["run"], "sim": None, "error": why}
 
     def sim() -> dict:
-        return cache_sim.simulate(cache_sim.parse_trace(r["trace"]), geom)
+        return cache_sim.simulate(r["trace"], geom)
 
     result = await asyncio.to_thread(sim)
     return {"ok": True, "build": r["build"], "run": r["run"], "sim": result}
