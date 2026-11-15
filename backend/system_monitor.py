@@ -140,6 +140,7 @@ _SIGNAL = re.compile(r"^--- (SIG\w+)")
 _EXITED = re.compile(r"^\+\+\+ (.*) \+\+\+$")
 _ERRNO = re.compile(r"^\s*([A-Z][A-Z0-9_]+)\b")
 _DUR = re.compile(r"<(\d+\.\d+)>\s*$")
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][AB012]")  # terminal colour/cursor codes
 
 
 class StraceReader:
@@ -285,7 +286,7 @@ class OutputReader:
         self.thread.start()
 
     def _push(self, raw: bytes):
-        s = raw.decode(errors="replace").rstrip("\r")
+        s = _ANSI.sub("", raw.decode(errors="replace")).rstrip("\r")
         if len(s) > OUTPUT_LINE_MAX:
             s = s[:OUTPUT_LINE_MAX] + "…"
         with self.lock:
