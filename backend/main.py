@@ -12,7 +12,10 @@ WS     /ws/system             System mode. Client sends one of
                               plus optional "strace": bool, "interval_ms": int, "cpus": [int] (pin; empty = any).
                               Server streams {"type": "build"|"start"|"tick"|"exit"|"error"|"pinned", ...}.
                               Client may send {"type": "stop"} or {"type": "pin", "cpus": [...]} (live re-pin).
-POST   /run_cache             Cache mode (later milestone)
+GET    /api/cache/sources     Cache mode programs (instrument/examples + workspace files using tarray.hpp)
+GET    /api/cache/source?origin=&file=   source code of one of them
+POST   /run_cache             Cache mode: {"origin", "file", "args", "s", "E", "b", "max_accesses"}
+                              -> build info, program output, and the simulation (events + snapshots + stats)
 """
 import asyncio
 import os
@@ -20,12 +23,16 @@ import platform
 import shlex
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
+import cache_sim
+import runner
 import workspace
 from system_monitor import SystemRun
 
 app = FastAPI(title="DigInside")
+app.add_middleware(GZipMiddleware, minimum_size=4096)  # Cache mode responses are large but repetitive
 
 
 def online_cpus() -> list[int]:
@@ -144,3 +151,49 @@ async def ws_system(ws: WebSocket):
     finally:
         run.stop()
         listener.cancel()
+
+
+# --------------------------------------------------------------------------- Cache mode
+
+class CacheRequest(BaseModel):
+    origin: str = "examples"
+    file: str
+    args: str = ""
+    s: int = 4
+    E: int = 2
+    b: int = 5
+    max_accesses: int = runner.DEFAULT_MAX_ACCESSES
+
+
+@app.get("/api/cache/sources")
+def cache_sources() -> dict:
+    return {"sources": runner.list_sources(), "limits": cache_sim.LIMITS}
+
+
+@app.get("/api/cache/source")
+def cache_source(origin: str, file: str) -> dict:
+    try:
+        return {"origin": origin, "file": file, "content": runner.read_source(origin, file)}
+    except (runner.RunnerError, workspace.WorkspaceError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/run_cache")
+async def run_cache(req: CacheRequest) -> dict:
+    geom = cache_sim.Geometry(req.s, req.E, req.b)
+    try:
+        cache_sim.validate(geom)
+        r = await runner.trace_program(req.origin, req.file, req.args, req.max_accesses)
+    except (ValueError, runner.RunnerError, workspace.WorkspaceError) as e:
+        raise HTTPException(400, str(e))
+    if not r["build"]["ok"]:
+        return {"ok": False, "stage": "build", "build": r["build"], "run": None, "sim": None}
+    if not r["trace"]:
+        return {"ok": False, "stage": "run", "build": r["build"], "run": r["run"], "sim": None,
+                "error": "the program produced no trace (does it use dig::tarray?)"}
+
+    def sim() -> dict:
+        return cache_sim.simulate(cache_sim.parse_trace(r["trace"]), geom)
+
+    result = await asyncio.to_thread(sim)
+    return {"ok": True, "build": r["build"], "run": r["run"], "sim": result}
