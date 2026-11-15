@@ -8,6 +8,10 @@ A visual playground for how programs use the machine, built for courses like CS 
 ![Threads of a matrix multiply spread across 8 cores](docs/screenshots/canvas.png)
 ![Stepping through a C program's memory accesses in the cache inspector](docs/screenshots/cache-inspector.png)
 
+| Parallel speedup across runs | A program feeding a cache module |
+|---|---|
+| ![Run history: 1 to 8 threads](docs/screenshots/run-history.png) | ![A plain C program connected to a cache](docs/screenshots/cache-module.png) |
+
 ---
 
 ## Quick start
