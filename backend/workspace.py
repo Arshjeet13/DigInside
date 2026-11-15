@@ -33,6 +33,7 @@ DEFAULT_BUILD = {
 # For these compilers, DigInside appends include paths for the workspace and instrument/ headers.
 _COMPILER = re.compile(r"^(g\+\+|gcc|c\+\+|cc|clang\+\+|clang)(-\d+)?$")
 BUILD_TIMEOUT_S = 120
+INCLUDES_TARRAY = re.compile(r'^\s*#\s*include\s*[<"]tarray\.hpp[>"]', re.MULTILINE)
 
 
 class WorkspaceError(ValueError):
@@ -89,7 +90,7 @@ def header_hints(p: Path) -> dict:
         text = p.read_text(errors="replace")
     except OSError:
         return {"args": None, "cache": None, "traced": False}
-    traced = "tarray.hpp" in text
+    traced = bool(INCLUDES_TARRAY.search(text))
     for line in text.splitlines()[:30]:
         body = line.strip()
         for prefix in ("//", "#"):

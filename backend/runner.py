@@ -86,7 +86,7 @@ def list_sources() -> list[dict]:
             continue
         p = workspace.WORKSPACE / f["path"]
         try:
-            if "tarray.hpp" in p.read_text(errors="replace"):
+            if workspace.INCLUDES_TARRAY.search(p.read_text(errors="replace")):
                 out.append({"origin": "workspace", "file": f["path"], **_describe(p)})
         except OSError:
             pass
