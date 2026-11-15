@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from collections import OrderedDict
 from dataclasses import dataclass
 
@@ -55,7 +56,43 @@ class Geometry:
                 "lines": self.lines, "size": self.size}
 
 
-LIMITS = {"s": (0, 10), "E": (1, 16), "b": (0, 8), "lines": 2048}
+LIMITS = {"s": (0, 10), "E": (1, 32), "b": (0, 8), "lines": 2048}
+
+
+def hardware_caches() -> list[dict]:
+    """Data/unified caches of CPU 0 as Linux reports them (inside a VM: what the hypervisor reports)."""
+    out = []
+    base = "/sys/devices/system/cpu/cpu0/cache"
+    try:
+        entries = sorted(e for e in os.listdir(base) if e.startswith("index"))
+    except OSError:
+        return out
+    for e in entries:
+        def rd(name: str) -> str:
+            try:
+                with open(f"{base}/{e}/{name}") as f:
+                    return f.read().strip()
+            except OSError:
+                return ""
+        kind = rd("type")
+        if kind not in ("Data", "Unified"):
+            continue
+        try:
+            ways, line, sets = int(rd("ways_of_associativity")), int(rd("coherency_line_size")), int(rd("number_of_sets"))
+        except ValueError:
+            continue
+        if line <= 0 or sets <= 0 or line & (line - 1) or sets & (sets - 1):
+            continue  # not a power of two: can't express as s/b bits
+        g = Geometry(sets.bit_length() - 1, ways, line.bit_length() - 1)
+        try:
+            validate(g)
+            fits, why = True, ""
+        except ValueError as err:
+            fits, why = False, str(err)
+        out.append({"name": f"L{rd('level')}{'d' if kind == 'Data' else ''}", "level": int(rd("level") or 0),
+                    "size": g.size, "ways": ways, "line": line, "sets": sets,
+                    "s": g.s, "E": g.E, "b": g.b, "fits": fits, "why": why})
+    return out
 
 
 def validate(g: Geometry) -> None:

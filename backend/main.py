@@ -14,6 +14,7 @@ WS     /ws/system             System mode. Client sends one of
                               Client may send {"type": "stop"} or {"type": "pin", "cpus": [...]} (live re-pin).
 GET    /api/cache/sources     Cache mode programs (instrument/examples + workspace files using tarray.hpp)
 GET    /api/cache/source?origin=&file=   source code of one of them
+GET    /api/cache/hardware    this CPU's data caches (from /sys) for "real geometry" presets
 POST   /run_cache             Cache mode: {"origin", "file", "args", "s", "E", "b", "max_accesses"}
                               -> build info, program output, and the simulation (events + snapshots + stats)
 """
@@ -168,6 +169,11 @@ class CacheRequest(BaseModel):
 @app.get("/api/cache/sources")
 def cache_sources() -> dict:
     return {"sources": runner.list_sources(), "limits": cache_sim.LIMITS}
+
+
+@app.get("/api/cache/hardware")
+def cache_hardware() -> dict:
+    return {"caches": cache_sim.hardware_caches()}
 
 
 @app.get("/api/cache/source")
