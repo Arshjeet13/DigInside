@@ -11,6 +11,7 @@ import FileSidebar from "./components/FileSidebar";
 import CpuTimePanel from "./components/CpuTimePanel";
 import CodeViewer from "./components/CodeViewer";
 import { useRunStore } from "./system/runs";
+import CacheView from "./components/cache/CacheView";
 
 type Mode = "system" | "cache";
 
@@ -24,7 +25,7 @@ export default function App() {
   const [selected, setSelected] = useState<{ key: string; tid: number } | null>(null);
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [filesError, setFilesError] = useState<string | null>(null);
-  const [viewer, setViewer] = useState<{ path: string; lang: WorkspaceFile["lang"] } | null>(null);
+  const [viewer, setViewer] = useState<{ path: string; lang: WorkspaceFile["lang"]; load?: () => Promise<string> } | null>(null);
 
   useEffect(() => {
     fetchInfo().then(setInfo).catch((e: Error) => setInfoError(e.message));
@@ -84,7 +85,7 @@ export default function App() {
       </header>
 
       {mode === "cache" ? (
-        <div className="status">Cache mode arrives in a later milestone.</div>
+        <CacheView openCode={(path, lang, load) => setViewer({ path, lang, load })} />
       ) : (
         <>
           <StatsBar run={run} frame={frame} atEnd={atEnd} />
@@ -164,7 +165,7 @@ export default function App() {
           />
         </>
       )}
-      {viewer && <CodeViewer path={viewer.path} lang={viewer.lang} onClose={() => setViewer(null)} />}
+      {viewer && <CodeViewer path={viewer.path} lang={viewer.lang} load={viewer.load} onClose={() => setViewer(null)} />}
     </div>
   );
 }

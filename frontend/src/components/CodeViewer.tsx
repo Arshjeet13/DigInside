@@ -6,16 +6,18 @@ interface Props {
   path: string;
   lang: WorkspaceFile["lang"];
   onClose: () => void;
+  load?: () => Promise<string>; // defaults to reading the workspace file at `path`
 }
 
-export default function CodeViewer({ path, lang, onClose }: Props) {
+export default function CodeViewer({ path, lang, onClose, load }: Props) {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setContent(null);
     setError(null);
-    readFile(path).then(setContent).catch((e: Error) => setError(e.message));
+    (load ?? (() => readFile(path)))().then(setContent).catch((e: Error) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
   useEffect(() => {
