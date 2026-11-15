@@ -82,13 +82,25 @@ export function regionIndex(regions: Region[], addr: number): number {
   return -1;
 }
 
-/** "A[37]" style label for an address (element index within its array), or hex if unknown. */
+/** True when element indices aren't meaningful: stack/other memory, or only wide (SIMD) accesses seen. */
+export const byteLabeled = (g: Region) => g.kind === "stack" || g.kind === "other" || g.kind === "section" || g.elem > 8;
+
+/** "A[37]" style label for an address (element index within its array); "g+16" / "stack 0x…" when
+ * element indices aren't meaningful; hex if the address isn't in any known region. */
 export function describeAddr(regions: Region[], addr: number): string {
   const r = regionIndex(regions, addr);
   if (r < 0) return `0x${addr.toString(16)}`;
   const g = regions[r];
   const off = addr - g.base;
+  if (g.kind === "stack" || g.kind === "other") return `${g.name} 0x${addr.toString(16)}`;
+  if (byteLabeled(g)) return `${g.name}+${off}`;
   return `${g.name}[${Math.floor(off / g.elem)}]`;
+}
+
+/** The source line that made event k, if the trace has line info (Valgrind traces). */
+export function sourceLineOf(sim: SimResult, k: number) {
+  const id = k >= 0 ? sim.events.line?.[k] ?? -1 : -1;
+  return id >= 0 ? sim.lines?.[id] ?? null : null;
 }
 
 export const hex = (x: number) => `0x${x.toString(16)}`;

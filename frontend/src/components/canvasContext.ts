@@ -6,7 +6,7 @@ export interface CacheRun {
   status: "idle" | "tracing" | "ready" | "error";
   resp?: CacheResponse;
   error?: string;
-  program?: { file: string; args: string };
+  program?: { file: string; args: string; build?: string; traced?: boolean };
   geoKey?: string;
   cursor: number;
 }
@@ -30,7 +30,10 @@ export interface CanvasApi {
   unpinAll: (nodeId: string) => void;
   getCacheRun: (cacheId: string) => CacheRun | undefined;
   cacheProgram: (cacheId: string) => { nodeId: string; file: string; traced?: boolean } | null;
-  updateCache: (cacheId: string, patch: Partial<{ s: number; E: number; b: number; name: string }>) => void;
+  updateCache: (
+    cacheId: string,
+    patch: Partial<{ s: number; E: number; b: number; name: string; tracer: "auto" | "tarray" | "valgrind"; scope: "code" | "all" }>,
+  ) => void;
   inspectCache: (cacheId: string) => void;
   cachePresets: (cacheId: string) => CachePreset[];
   openCode: (path: string, lang: WorkspaceFile["lang"]) => void;

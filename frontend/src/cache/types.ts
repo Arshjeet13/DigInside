@@ -55,6 +55,7 @@ export interface Events {
   evict: number[]; // evicted tag or -1
   wb: number[]; // 1 = evicted line was dirty (write-back)
   src: number[]; // index of the trace access
+  line?: number[]; // index into SimResult.lines (Valgrind traces), -1 = unknown
 }
 
 export interface Snapshot {
@@ -70,6 +71,14 @@ export interface Region {
   base: number;
   bytes: number;
   elem: number;
+  kind?: "global" | "heap" | "stack" | "section" | "other"; // Valgrind traces
+}
+
+export interface SourceLine {
+  file: string;
+  line: number;
+  func: string;
+  text: string;
 }
 
 export interface SimResult {
@@ -82,6 +91,8 @@ export interface SimResult {
   regions: Region[];
   truncated: boolean;
   result_names: string[];
+  lines?: SourceLine[];
+  note?: string;
 }
 
 export interface BuildInfo {
@@ -115,4 +126,7 @@ export interface CacheRequest {
   s: number;
   E: number;
   b: number;
+  tracer?: "tarray" | "valgrind";
+  scope?: "code" | "all";
+  build?: string;
 }

@@ -346,3 +346,9 @@ button, input, select { font: inherit; color: inherit; }
 .insp-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: #1a1830; }
 .insp-body { flex: 1; display: flex; min-height: 0; }
 .insp-main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.lx-src { font-size: 12px; color: var(--muted); }
+.lx-src code { font-family: var(--mono); color: var(--text); background: var(--panel2); padding: 1px 5px; border-radius: 3px; }
+.ex-src pre { margin: 3px 0 0; padding: 4px 6px; background: var(--panel2); border-radius: 4px; white-space: pre-wrap; }
+.cm-trace { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cm-trace label { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+.cm-trace select { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; font-size: 12px; max-width: 200px; }

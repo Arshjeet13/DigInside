@@ -4,7 +4,20 @@ import { useCanvasApi } from "./canvasContext";
 import type { SimResult } from "../cache/types";
 import { blockAddr, fmtBytes, regionIndex, REGION_COLORS, RESULT_COLOR, stateAt } from "../cache/state";
 
-export type CacheModuleData = { name: string; s: number; E: number; b: number };
+export type CacheModuleData = {
+  name: string;
+  s: number;
+  E: number;
+  b: number;
+  tracer?: "auto" | "tarray" | "valgrind"; // auto = tarray if the program uses tarray.hpp, else Valgrind
+  scope?: "code" | "all"; // Valgrind: only your code's accesses, or everything
+};
+
+/** Which tracer actually runs for this cache + program. */
+export function resolveTracer(d: CacheModuleData, traced: boolean | undefined): "tarray" | "valgrind" {
+  if (d.tracer === "tarray" || d.tracer === "valgrind") return d.tracer;
+  return traced ? "tarray" : "valgrind";
+}
 export type CacheModuleType = Node<CacheModuleData, "cache">;
 
 export const CACHE_NODE_W = 290;
@@ -40,9 +53,11 @@ export default function CacheModuleNode({ id, data, selected }: NodeProps<CacheM
     </label>
   );
 
+  const tracer = resolveTracer(data, prog?.traced);
   let status: React.ReactNode;
   if (!prog) status = <span className="muted">Connect a program: drag from its ● handle to this cache.</span>;
-  else if (prog.traced === false) status = <span className="warn">{prog.file} doesn't use tarray.hpp, so there's nothing to trace.</span>;
+  else if (tracer === "tarray" && prog.traced === false)
+    status = <span className="warn">{prog.file} doesn't use tarray.hpp. Set Trace to Auto or Valgrind to trace its machine code.</span>;
   else if (!run || run.status === "idle") status = <span className="muted">{prog.file} → press Run on it to fill this cache.</span>;
   else if (run.status === "tracing") status = <span className="warn">tracing {run.program?.file}…</span>;
   else if (run.status === "error") status = <span className="bad">{run.error}</span>;
@@ -60,6 +75,7 @@ export default function CacheModuleNode({ id, data, selected }: NodeProps<CacheM
           ))}
         </div>
         <div className="muted small">cold {st.cold} · conflict {st.conflict} · capacity {st.capacity}</div>
+        {sim.note && <div className="muted small">{sim.note}</div>}
         <MiniGrid sim={sim} tags={state.tags} />
       </>
     );
@@ -94,6 +110,25 @@ export default function CacheModuleNode({ id, data, selected }: NodeProps<CacheM
           <span className="muted small mono">S={d.S} E={data.E} B={d.B}</span>
         </div>
         {d.lines > 2048 && <div className="bad small">S × E = {d.lines} lines; max 2048</div>}
+        <div className="cm-trace">
+          <label className="nodrag" title="Where the memory accesses come from">
+            trace
+            <select
+              value={data.tracer ?? "auto"}
+              onChange={(e) => setGeo({ tracer: e.target.value as CacheModuleData["tracer"] })}
+            >
+              <option value="auto">Auto{prog ? ` (${resolveTracer({ ...data, tracer: "auto" }, prog.traced)})` : ""}</option>
+              <option value="tarray">Source arrays (tarray.hpp)</option>
+              <option value="valgrind">Machine code (Valgrind)</option>
+            </select>
+          </label>
+          {tracer === "valgrind" && (
+            <label className="check nodrag" title="Keep only loads/stores made by your program's own code (drops startup, libc, printf internals)">
+              <input type="checkbox" checked={(data.scope ?? "code") === "code"} onChange={(e) => setGeo({ scope: e.target.checked ? "code" : "all" })} />
+              only my code
+            </label>
+          )}
+        </div>
         <div className="cm-status small">{status}</div>
         <button className="btn small nodrag" disabled={!sim} onClick={() => api.inspectCache(id)}>
           Inspect ▸

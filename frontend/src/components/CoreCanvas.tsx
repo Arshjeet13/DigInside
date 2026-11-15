@@ -22,7 +22,7 @@ import PinEdge, { type PinEdgeType } from "./PinEdge";
 import { CanvasContext, type CanvasApi } from "./canvasContext";
 import { FILE_DRAG_TYPE } from "./FileSidebar";
 import BuildDialog from "./BuildDialog";
-import CacheModuleNode, { type CacheModuleData } from "./CacheModuleNode";
+import CacheModuleNode, { resolveTracer, type CacheModuleData } from "./CacheModuleNode";
 import CacheInspector from "./CacheInspector";
 import type { CachePreset, CacheRun } from "./canvasContext";
 import { fetchHardware, runCache } from "../cache/api";
@@ -187,15 +187,20 @@ export default function CoreCanvas(props: Props) {
     fetchHardware().then(setHardware).catch(() => setHardware([]));
   }, []);
 
-  const geoKey = (g: { s: number; E: number; b: number }) => `${g.s}-${g.E}-${g.b}`;
+  // Everything that decides a cache's result besides the program: geometry + where the trace comes from.
+  const geoKey = (g: CacheModuleData, traced?: boolean) => `${g.s}-${g.E}-${g.b}-${resolveTracer(g, traced)}-${g.scope ?? "code"}`;
 
   const traceInto = useCallback(
-    async (cacheId: string, program: { file: string; args: string }, g: { s: number; E: number; b: number }) => {
+    async (cacheId: string, program: NonNullable<CacheRun["program"]>, g: CacheModuleData) => {
       const req = (cacheReq.current.get(cacheId) ?? 0) + 1;
       cacheReq.current.set(cacheId, req);
       setCacheRuns((r) => ({ ...r, [cacheId]: { ...(r[cacheId] ?? { cursor: 0 }), status: "tracing", program, error: undefined } }));
       try {
-        const resp = await runCache({ origin: "workspace", file: program.file, args: program.args, s: g.s, E: g.E, b: g.b });
+        const tracer = resolveTracer(g, program.traced);
+        const resp = await runCache({
+          origin: "workspace", file: program.file, args: program.args, s: g.s, E: g.E, b: g.b,
+          tracer, scope: g.scope ?? "code", build: tracer === "valgrind" ? program.build : undefined,
+        });
         if (cacheReq.current.get(cacheId) !== req) return;
         setCacheRuns((r) => {
           const prev = r[cacheId];
@@ -207,7 +212,7 @@ export default function CoreCanvas(props: Props) {
           }
           const n = resp.sim.events.n;
           const sameTrace = prev?.resp && prev.program?.file === program.file && prev.program?.args === program.args;
-          return { ...r, [cacheId]: { status: "ready", resp, program, geoKey: geoKey(g), cursor: sameTrace ? Math.min(prev.cursor, n) : n } };
+          return { ...r, [cacheId]: { status: "ready", resp, program, geoKey: geoKey(g, program.traced), cursor: sameTrace ? Math.min(prev.cursor, n) : n } };
         });
       } catch (err) {
         if (cacheReq.current.get(cacheId) !== req) return;
@@ -239,7 +244,7 @@ export default function CoreCanvas(props: Props) {
       if (n.type !== "cache") continue;
       const d = n.data as CacheModuleData;
       const run = cacheRuns[n.id];
-      if (run?.program && run.status === "ready" && run.geoKey !== geoKey(d) && 2 ** d.s * d.E <= 2048) {
+      if (run?.program && run.status === "ready" && run.geoKey !== geoKey(d, run.program.traced) && 2 ** d.s * d.E <= 2048) {
         timers.push(window.setTimeout(() => traceInto(n.id, run.program!, d), 300));
       }
     }
@@ -286,7 +291,7 @@ export default function CoreCanvas(props: Props) {
       for (const e of edges) {
         if (e.source !== id || !e.target.startsWith("cache-")) continue;
         const c = nodes.find((x) => x.id === e.target);
-        if (c) traceInto(c.id, { file: d.file, args: d.args }, c.data as CacheModuleData);
+        if (c) traceInto(c.id, { file: d.file, args: d.args, build: d.build, traced: d.traced }, c.data as CacheModuleData);
       }
       onRunStarted(id);
     },

@@ -1,5 +1,5 @@
 import type { CacheResponse, CacheStats, SimResult } from "../../cache/types";
-import { describeAddr, hex, RESULT_COLOR, RESULT_LABEL, splitAddr, type CacheState } from "../../cache/state";
+import { describeAddr, hex, RESULT_COLOR, RESULT_LABEL, sourceLineOf, splitAddr, type CacheState } from "../../cache/state";
 
 interface Props {
   resp: CacheResponse;
@@ -48,8 +48,9 @@ function Explain({ sim, current }: { sim: SimResult; current: number }) {
   if (current < 0) return <div className="muted small">No access yet. Step forward to see the first one.</div>;
   const addr = ev.addr[current];
   const { tag, set, offset } = splitAddr(addr, s, b);
-  const t = 32 - s - b;
-  const bits = addr.toString(2).padStart(32, "0");
+  const width = Math.max(32, Math.ceil(addr.toString(2).length / 4) * 4); // 32 bits, or more for high addresses
+  const t = width - s - b;
+  const bits = addr.toString(2).padStart(width, "0");
   const res = ev.result[current];
   const way = ev.way[current];
   const evicted = ev.evict[current];
@@ -66,7 +67,16 @@ function Explain({ sim, current }: { sim: SimResult; current: number }) {
         <b>{ev.op[current] ? "store to" : "load from"} {describeAddr(sim.regions, addr)}</b>
         <span className="mono muted"> {hex(addr)}</span>
       </div>
-      <div className="addr-bits mono" title="32-bit address split into tag | set index | block offset">
+      {(() => {
+        const sl = sourceLineOf(sim, current);
+        return sl ? (
+          <div className="ex-src small">
+            made by <b>line {sl.line}</b> of {sl.file} ({sl.func}):
+            <pre className="mono">{sl.text || "(no source text)"}</pre>
+          </div>
+        ) : null;
+      })()}
+      <div className="addr-bits mono" title={`${width}-bit address split into tag | set index | block offset`}>
         <span className="ab-tag">{bits.slice(0, t)}</span>
         <span className="ab-set">{bits.slice(t, t + s)}</span>
         <span className="ab-off">{bits.slice(t + s)}</span>
@@ -103,6 +113,7 @@ export default function CacheSidePanel({ resp, sim, state, current, onJump }: Pr
       </div>
       <div className="panel">
         <div className="panel-title">Statistics</div>
+        {sim.note && <div className="small muted">{sim.note}</div>}
         <StatsTable now={state.stats} total={sim.stats} />
         {sim.truncated && <div className="small warn">Trace was cut off at the access limit; stats cover the traced part.</div>}
       </div>
@@ -110,7 +121,12 @@ export default function CacheSidePanel({ resp, sim, state, current, onJump }: Pr
         <div className="panel-title">Recent accesses (click to jump)</div>
         <div className="recent">
           {recent.map((k) => (
-            <div key={k} className={`recent-row${k === current ? " cur" : ""}`} onClick={() => onJump(k + 1)}>
+            <div
+              key={k}
+              className={`recent-row${k === current ? " cur" : ""}`}
+              onClick={() => onJump(k + 1)}
+              title={(() => { const sl = sourceLineOf(sim, k); return sl ? `line ${sl.line}: ${sl.text}` : ""; })()}
+            >
               <span className="muted mono">#{k + 1}</span>
               <span className="mono">{ev.op[k] ? "W" : "R"}</span>
               <span className="recent-what">{describeAddr(sim.regions, ev.addr[k])}</span>

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { SimResult } from "../../cache/types";
 import {
-  blockAddr, describeAddr, hex, regionIndex, REGION_COLORS, RESULT_COLOR, RESULT_LABEL, splitAddr, type CacheState,
+  blockAddr, byteLabeled, describeAddr, hex, regionIndex, REGION_COLORS, RESULT_COLOR, RESULT_LABEL, sourceLineOf, splitAddr,
+  type CacheState,
 } from "../../cache/state";
 
 interface Props {
@@ -38,6 +39,13 @@ function elementsIn(sim: SimResult, addr: number) {
       continue;
     }
     const g = sim.regions[r];
+    if (byteLabeled(g)) {
+      // stack / unnamed memory / SIMD-only: one segment for the part of the block inside this region
+      const end = Math.min(addr + B, g.base + g.bytes);
+      out.push({ label: g.kind === "stack" || g.kind === "other" ? g.name : `${g.name}+${pos - g.base}`, from: pos - addr, to: end - addr, region: r });
+      pos = end;
+      continue;
+    }
     const idx = Math.floor((pos - g.base) / g.elem);
     const end = Math.min(g.base + (idx + 1) * g.elem, addr + B, g.base + g.bytes);
     out.push({ label: `${g.name}[${idx}]`, from: pos - addr, to: end - addr, region: r });
@@ -210,6 +218,14 @@ export default function CacheExplorer({ sim, state, current }: Props) {
             <span className="muted">=</span>
             <span className="mono"><span className="ab-tag">tag {hex(split.tag)}</span> | <span className="ab-set">set {split.set}</span> | <span className="ab-off">offset {split.offset}</span></span>
             <span className="lx-res" style={{ background: RESULT_COLOR[cur.res] }}>{RESULT_LABEL[cur.res]}</span>
+            {(() => {
+              const sl = sourceLineOf(sim, current);
+              return sl ? (
+                <span className="lx-src" title={`${sl.file}:${sl.line} in ${sl.func}`}>
+                  line {sl.line}: <code>{sl.text || sl.func}</code>
+                </span>
+              ) : null;
+            })()}
           </>
         ) : (
           <span className="muted">No access yet: step forward (→) to see the first one.</span>
@@ -335,7 +351,11 @@ export default function CacheExplorer({ sim, state, current }: Props) {
                   title={`block ${hex(row.addr)}: tag ${hex(row.tag)}, set ${row.set}${way !== undefined ? `, cached in line ${way}` : ", not cached"}`}
                 >
                   <span className="mono lx-blk-addr">{hex(row.addr)}</span>
-                  <span className="lx-blk-els">{g.name}[{row.first}{row.last > row.first ? `..${row.last}` : ""}]</span>
+                  <span className="lx-blk-els">
+                    {byteLabeled(g)
+                      ? `${g.name}+${Math.max(row.addr, g.base) - g.base}`
+                      : `${g.name}[${row.first}${row.last > row.first ? `..${row.last}` : ""}]`}
+                  </span>
                   <span className="mono muted lx-blk-set">set {row.set}</span>
                   <span className={`lx-blk-res${way !== undefined ? " in" : ""}`} style={way !== undefined ? { background: color } : undefined}>
                     {way !== undefined ? `line ${way}` : ""}
