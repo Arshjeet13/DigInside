@@ -14,6 +14,16 @@ A visual playground for how programs use the machine, built for courses like CS 
 
 ---
 
+## Platforms
+
+| | |
+|---|---|
+| **Linux** | Fully supported (native hardware CPUs). |
+| **Windows** | Run the backend inside **WSL2**; open the page in any Windows browser. Cores shown are WSL's virtual CPUs. |
+| **macOS** | Not natively: no `/proc`, no `strace`, no way to pin threads to cores, and no Valgrind on Apple Silicon. Run it inside a Linux VM (UTM, Lima, OrbStack). |
+
+DigInside adapts to the machine: it draws one node per CPU the backend is allowed to use (`sched_getaffinity`), and the "Your CPU's L1d" cache preset comes from `/sys/devices/system/cpu/cpu0/cache`.
+
 ## Quick start
 
 Linux (or WSL2) with:
