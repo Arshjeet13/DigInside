@@ -71,7 +71,8 @@ export interface Region {
   base: number;
   bytes: number;
   elem: number;
-  kind?: "global" | "heap" | "stack" | "section" | "other"; // Valgrind traces
+  kind?: "global" | "local" | "heap" | "stack" | "section" | "other"; // Valgrind traces; absent for tarray
+  desc?: string; // plain-English description, e.g. "local variable of main()"
 }
 
 export interface SourceLine {
