@@ -7,3 +7,4 @@ workspace/.build/
 *.tsbuildinfo
 start_prompt.txt
 instrument/.build/
+DEVPOST.md
