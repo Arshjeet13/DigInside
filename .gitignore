@@ -5,3 +5,4 @@ frontend/dist/
 *.trace
 workspace/.build/
 *.tsbuildinfo
+start_prompt.txt
